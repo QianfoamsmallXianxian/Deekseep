@@ -43,6 +43,14 @@ jobs:
         run: bash scripts/build-all.sh
         continue-on-error: true
 
+      - name: Stage APK artifacts
+        if: always()
+        run: |
+          mkdir -p dist
+          cp -v module-universal/ds-probe-universal.apk dist/ 2>/dev/null || true
+          cp -v module-universal/ds-probe-universal-google-play.apk dist/ 2>/dev/null || true
+          ls -la dist/ || true
+
       - name: Upload APKs and checksums
         if: always()
         uses: actions/upload-artifact@v7
