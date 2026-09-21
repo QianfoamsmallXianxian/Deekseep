@@ -234,10 +234,10 @@ public class Main extends MainReflectionSupport implements IXposedHookLoadPackag
             "/data/data/com.deepseek.chat/files/deekseep_message_details";
 
     private static final String V241_LOCAL_CHAT_QUOTA_UNLOCK_FILE =
-            "/data/data/com.deepseek.chat/files/deekseep_local_chat_quota_unlock_code257";
+            "/data/data/com.deepseek.chat/files/deekseep_local_chat_quota_lock_code257";
 
     private static final String V236_LOCAL_CHAT_QUOTA_UNLOCK_FILE =
-            "/data/data/com.deepseek.chat/files/deekseep_local_chat_quota_unlock_code249";
+            "/data/data/com.deepseek.chat/files/deekseep_local_chat_quota_lock_code249";
 
     private static final String THINKING_CODE_COPY_FILE =
             "/data/data/com.deepseek.chat/files/deekseep_thinking_code_copy_code257";
@@ -2141,8 +2141,8 @@ public class Main extends MainReflectionSupport implements IXposedHookLoadPackag
     }
 
     static boolean isLocalChatQuotaUnlockEnabled() {
-        if (HostCompat.isV236()) return new File(V236_LOCAL_CHAT_QUOTA_UNLOCK_FILE).isFile();
-        if (HostCompat.isV241()) return new File(V241_LOCAL_CHAT_QUOTA_UNLOCK_FILE).isFile();
+        if (HostCompat.isV236()) return !new File(V236_LOCAL_CHAT_QUOTA_UNLOCK_FILE).isFile();
+        if (HostCompat.isV241()) return !new File(V241_LOCAL_CHAT_QUOTA_UNLOCK_FILE).isFile();
         return false;
     }
 
@@ -2153,8 +2153,8 @@ public class Main extends MainReflectionSupport implements IXposedHookLoadPackag
             else if (HostCompat.isV241()) markerPath = V241_LOCAL_CHAT_QUOTA_UNLOCK_FILE;
             else return false;
             File marker = new File(markerPath);
-            if (enabled) overwriteTextFile(markerPath, "1");
-            else if (marker.exists() && !marker.delete()) return false;
+            if (enabled) { if (marker.exists()) marker.delete(); }
+            else overwriteTextFile(markerPath, "1");
             if (HostCompat.isV236()) {
                 synchronized (V236_LOCAL_CHAT_QUOTA_ORIGINALS) {
                     for (Object config : new ArrayList<Object>(
