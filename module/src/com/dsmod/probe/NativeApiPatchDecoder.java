@@ -43,6 +43,21 @@ public final class NativeApiPatchDecoder {
         return out;
     }
 
+    /**
+     * True when the Closed-only decoder payload is present in this build.
+     *
+     * The channel-tracking implementation lives in the encrypted secondary
+     * payload ({@code z12decoder}). The Open edition ships {@code z14} as a stub
+     * whose {@code available()} returns false and whose {@code payloadClass()}
+     * returns null, so {@link #decode(Object)} is a documented no-op there.
+     * Callers that need to distinguish "decoded to empty" from "cannot decode
+     * in this edition" should consult this first.
+     */
+    public static boolean coreAvailable() {
+        if (!z14.available()) return false;
+        return coreConstructor() != null;
+    }
+
     private static Constructor<?> coreConstructor() {
         if (coreCtor != null) return coreCtor;
         try {
