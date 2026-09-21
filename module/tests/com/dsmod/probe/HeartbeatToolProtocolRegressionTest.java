@@ -119,8 +119,8 @@ public final class HeartbeatToolProtocolRegressionTest {
         require(parsed.visibleText.contains("已经替你安排好了。")
                         && !parsed.visibleText.contains("晚点见。"),
                 "text after a tool call was not held until the real result returned");
-        require(parsed.calls.size() == 1,
-                "one response accepted more than one Agent tool call");
+        require(parsed.calls.size() == 4,
+                "one control block should cap independent calls at MAX_CALLS_PER_RESPONSE");
         require("2026-08-02T18:37:00+08:00".equals(parsed.calls.get(0).at),
                 "absolute one-time heartbeat was not retained");
         require("conversation-1234".equals(parsed.calls.get(0).scope),
