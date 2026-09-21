@@ -16,7 +16,7 @@ public final class RemoteFeatureFlagsRegressionTest {
             require(feature.zh.length() > 0 && feature.en.length() > 0,
                     "missing label " + feature.key);
         }
-        require(keys.size() == 11, "unexpected feature count " + keys.size());
+        require(keys.size() == 29, "unexpected feature count " + keys.size());
         require(keys.contains("kv_remote_settings_conversation_search_enabled"),
                 "conversation search missing");
         require(keys.contains("kv_remote_settings_voice_input_enabled"),
