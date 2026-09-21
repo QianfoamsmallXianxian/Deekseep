@@ -24,9 +24,9 @@ public final class HostCompatRegressionTest {
                 "2.2.x native resume event");
         setBoolean("legacyUnitUsesTi8", false);
         equals("ui8", HostCompat.unitClass(), "2.2.0/2.2.2 Unit mapping");
-        check(HostCompat.supportsHostVersionName("2.2.0"), "2.2.0 supported");
+        check(!HostCompat.supportsHostVersionName("2.2.0"), "2.2.0 retired: legacy mapping risked watchdog kill");
         check(HostCompat.supportsHostVersionName("2.2.2"), "2.2.2 supported");
-        check(HostCompat.supportsHostVersionName("2.3.0"), "2.3.0 supported");
+        check(!HostCompat.supportsHostVersionName("2.3.0"), "2.3.0 retired: legacy mapping risked watchdog kill");
         check(HostCompat.supportsHostVersionName("2.3.4"), "2.3.4 supported");
         check(HostCompat.supportsHostVersionName("2.3.6"), "2.3.6 supported");
         check(!HostCompat.supportsHostVersionName("2.3.3"), "2.3.3 rejected");
