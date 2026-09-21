@@ -5,6 +5,18 @@ import org.json.JSONObject;
 
 public final class NativeApiPatchDecoderRegressionTest {
     public static void main(String[] args) throws Exception {
+        /*
+         * The channel-tracking logic under test lives in the Closed-only
+         * payload (z12decoder). In the Open edition z14.payloadClass() returns
+         * null and decode() is a documented no-op, so these assertions cannot
+         * hold. Skip explicitly rather than reporting a false failure: the
+         * Closed build still runs the same assertions for real.
+         */
+        if (!NativeApiPatchDecoder.coreAvailable()) {
+            System.out.println("NativeApiPatchDecoderRegressionTest SKIP: "
+                    + "protected decoder payload is not present in this edition");
+            return;
+        }
         separatesThinkingAndResponseAcrossBareDeltas();
         preservesOrdinaryResponseDeltas();
         System.out.println("NativeApiPatchDecoderRegressionTest OK");
