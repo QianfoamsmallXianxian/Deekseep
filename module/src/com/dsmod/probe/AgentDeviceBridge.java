@@ -87,6 +87,23 @@ final class AgentDeviceBridge {
     private static final int SCREENSHOT_OUTPUT_LIMIT = 24 * 1024 * 1024;
     private static final String SYSTEM_PATH =
             "/system/bin:/system/xbin:/vendor/bin:/product/bin:/system_ext/bin";
+    /* ---- Deekseep tool-dispatch resilience (added) ---------------------- */
+    /** Extra attempts for transient transport faults before surfacing a failure. */
+    private static final int TRANSIENT_RETRY_ATTEMPTS = 3;
+    private static final long[] TRANSIENT_RETRY_BACKOFF_MS = { 600L, 1500L };
+    /** Retry policy for the network_request tool, which shells out to curl. */
+    private static final int NETWORK_RETRY_ATTEMPTS = 3;
+    private static final long[] NETWORK_RETRY_BACKOFF_MS = { 500L, 1500L };
+    /** Commands allowed to run this long are never auto-retried. */
+    private static final long TRANSIENT_RETRY_MAX_TIMEOUT_MS = 60000L;
+    /**
+     * Hard ceiling on one retry sequence, measured from the first attempt.
+     * A dead endpoint must not keep the conversation waiting indefinitely:
+     * once the budget is spent, the last observed failure is returned as-is.
+     */
+    private static final long RETRY_TOTAL_BUDGET_MS = 15000L;
+    /** A further retry needs at least this much budget left to be worthwhile. */
+    private static final long MIN_RETRY_SLICE_MS = 1000L;
     private static final String[] ROOT_BINARIES = new String[]{
             "/system/bin/su", "/system/xbin/su", "/sbin/su", "/debug_ramdisk/su",
             "/data/adb/ksu/bin/su", "/data/adb/ap/bin/su", "/data/adb/magisk/su"
@@ -2633,9 +2650,43 @@ final class AgentDeviceBridge {
     private static ToolResult executeNetworkRequest(
             Context context, String backend,
             HeartbeatToolProtocol.ToolCall call) {
-        CommandResult result = runCommandWithShizukuRecovery(
-                context, backend, networkCurlCommand(call),
-                call.timeoutMs + 1500L, false);
+        /*
+         * The agent's network tool is the most failure-prone path: a single
+         * transient DNS blip, connection reset or 5xx used to surface to the
+         * model as a hard "network error". Retry only faults that are safe to
+         * repeat (idempotent methods, or an explicit 408/425/429 back-off
+         * hint), and keep the whole sequence inside RETRY_TOTAL_BUDGET_MS.
+         *
+         * This loop deliberately calls the server-recovery variant directly:
+         * the generic transient retry inside runCommandWithShizukuRecovery
+         * would otherwise multiply these attempts by its own budget.
+         */
+        String method = call == null || call.mode == null ? "GET" : call.mode;
+        long timeoutMs = (call == null ? 15000L : call.timeoutMs) + 1500L;
+        long budgetStart = SystemClock.elapsedRealtime();
+        CommandResult result = null;
+        for (int attempt = 1; attempt <= NETWORK_RETRY_ATTEMPTS; attempt++) {
+            long remaining = RETRY_TOTAL_BUDGET_MS
+                    - (SystemClock.elapsedRealtime() - budgetStart);
+            if (attempt > 1 && remaining < MIN_RETRY_SLICE_MS) break;
+            long attemptTimeout = attempt == 1
+                    ? timeoutMs : Math.min(timeoutMs, remaining);
+            result = runCommandWithShizukuServerRecovery(
+                    context, backend, networkCurlCommand(call, attemptTimeout),
+                    attemptTimeout, false, NORMAL_OUTPUT_LIMIT);
+            if (result.exitCode == 0
+                    || !isRetryableNetworkFailure(result, method)
+                    || attempt >= NETWORK_RETRY_ATTEMPTS) {
+                break;
+            }
+            long backoff = NETWORK_RETRY_BACKOFF_MS[Math.min(
+                    attempt - 1, NETWORK_RETRY_BACKOFF_MS.length - 1)];
+            if (SystemClock.elapsedRealtime() - budgetStart + backoff
+                    >= RETRY_TOTAL_BUDGET_MS) {
+                break;
+            }
+            SystemClock.sleep(backoff);
+        }
         String output = combinedCommandOutput(result);
         String detail = result.exitCode == 0
                 ? UiLanguage.text(context,
@@ -2644,10 +2695,73 @@ final class AgentDeviceBridge {
         return new ToolResult(result.exitCode == 0, result.exitCode,
                 output, detail, "utf-8", result.truncated);
     }
+    /**
+     * Decides whether the network_request tool should be attempted again.
+     *
+     * Transport faults are only replayed for idempotent methods, because a
+     * lost response to a POST may mean the request actually reached the server.
+     * Explicit "come back later" statuses are safe to replay for any method.
+     */
+    private static boolean isRetryableNetworkFailure(
+            CommandResult result, String method) {
+        if (result == null) return false;
+        boolean idempotent = "GET".equalsIgnoreCase(method)
+                || "HEAD".equalsIgnoreCase(method)
+                || "OPTIONS".equalsIgnoreCase(method);
+        if (result.exitCode == -2) return idempotent;
+        int http = httpStatusFromOutput(result.output);
+        if (http > 0) {
+            if (http == 408 || http == 425 || http == 429) return true;
+            return http >= 500 && http <= 599 && idempotent;
+        }
+        if (!idempotent) return false;
+        switch (result.exitCode) {
+            case 5:  // couldn't resolve proxy
+            case 6:  // couldn't resolve host
+            case 7:  // failed to connect
+            case 28: // operation timeout
+            case 35: // SSL connect error
+            case 52: // empty reply from server
+            case 55: // send error
+            case 56: // recv error / connection reset
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    /** Reads the trailing "[deekseep_http_status] NNN" marker written by curl. */
+    private static int httpStatusFromOutput(String output) {
+        if (output == null) return 0;
+        String marker = "[deekseep_http_status]";
+        int at = output.lastIndexOf(marker);
+        if (at < 0) return 0;
+        String tail = output.substring(at + marker.length()).trim();
+        int end = 0;
+        while (end < tail.length() && Character.isDigit(tail.charAt(end))) end++;
+        if (end == 0) return 0;
+        try {
+            return Integer.parseInt(tail.substring(0, end));
+        } catch (NumberFormatException ignored) {
+            return 0;
+        }
+    }
 
     /** Builds an argv-safe curl invocation from the already validated structured call. */
     static String networkCurlCommand(HeartbeatToolProtocol.ToolCall call) {
-        int seconds = Math.max(1, Math.min(30, call.timeoutMs / 1000));
+        return networkCurlCommand(call,
+                call == null ? 15000L : call.timeoutMs);
+    }
+
+    /**
+     * Variant used by the retry loop: the curl deadline must follow the clipped
+     * attempt timeout, otherwise a shortened Java wait would still sit behind a
+     * full-length curl run and the total retry budget would be meaningless.
+     */
+    static String networkCurlCommand(HeartbeatToolProtocol.ToolCall call,
+                                     long effectiveTimeoutMs) {
+        int seconds = Math.max(1,
+                Math.min(30, (int) (effectiveTimeoutMs / 1000L)));
         StringBuilder command = new StringBuilder(512);
         command.append("PATH=").append(SYSTEM_PATH).append("; export PATH; ")
                 .append("curl --silent --show-error --location ")
@@ -2814,7 +2928,122 @@ final class AgentDeviceBridge {
                 binaryOutput ? SCREENSHOT_OUTPUT_LIMIT : NORMAL_OUTPUT_LIMIT);
     }
 
+    /**
+     * Outer resilience wrapper for every privileged tool invocation.
+     *
+     * The inner routine still owns the Shizuku-specific recovery (restarting a
+     * stopped server through Root). This wrapper adds a generic, bounded retry
+     * for transport-level faults that the inner routine does not recognise:
+     * binder timeouts, dead objects, broken pipes and our own command timeout.
+     *
+     * Retries are gated by isRetrySafeCommand(): replaying a tap, an append or
+     * an uninstall is worse than surfacing the original error, so only commands
+     * whose repeated execution cannot change the outcome are eligible.
+     */
+    /**
+     * Outer resilience wrapper for every privileged tool invocation.
+     *
+     * The inner routine still owns the Shizuku-specific recovery (restarting a
+     * stopped server through Root). This wrapper adds a generic, bounded retry
+     * for transport-level faults that the inner routine does not recognise:
+     * binder timeouts, dead objects, broken pipes and our own command timeout.
+     *
+     * Retries are gated by isRetrySafeCommand(): replaying a tap, an append or
+     * an uninstall is worse than surfacing the original error, so only commands
+     * whose repeated execution cannot change the outcome are eligible. The
+     * whole sequence is additionally capped by RETRY_TOTAL_BUDGET_MS, measured
+     * from the first attempt, so a stuck backend cannot hold the conversation
+     * open indefinitely; retries are clipped to whatever budget is left.
+     */
     private static CommandResult runCommandWithShizukuRecovery(
+            Context context, String backend, String command,
+            long timeoutMs, boolean binaryOutput, int outputLimit) {
+        long budgetStart = SystemClock.elapsedRealtime();
+        CommandResult result = runCommandWithShizukuServerRecovery(
+                context, backend, command, timeoutMs, binaryOutput, outputLimit);
+        if (timeoutMs > TRANSIENT_RETRY_MAX_TIMEOUT_MS) return result;
+        if (!isRetrySafeCommand(command)) return result;
+        for (int attempt = 1; attempt < TRANSIENT_RETRY_ATTEMPTS; attempt++) {
+            if (result.exitCode == 0 || result.binary != null
+                    || !isTransientCommandFailure(result)) {
+                return result;
+            }
+            long remaining = RETRY_TOTAL_BUDGET_MS
+                    - (SystemClock.elapsedRealtime() - budgetStart);
+            long backoff = TRANSIENT_RETRY_BACKOFF_MS[Math.min(
+                    attempt - 1, TRANSIENT_RETRY_BACKOFF_MS.length - 1)];
+            if (remaining - backoff < MIN_RETRY_SLICE_MS) return result;
+            SystemClock.sleep(backoff);
+            long retryTimeout = Math.min(timeoutMs, RETRY_TOTAL_BUDGET_MS
+                    - (SystemClock.elapsedRealtime() - budgetStart));
+            if (retryTimeout < MIN_RETRY_SLICE_MS) return result;
+            result = runCommandWithShizukuServerRecovery(
+                    context, backend, command, retryTimeout, binaryOutput, outputLimit);
+        }
+        return result;
+    }
+
+    /**
+     * Conservative gate: only commands whose repeated execution cannot change
+     * the outcome are eligible for transparent retry. UI automation, file
+     * mutation, package management and process control all sit this out,
+     * because a duplicated tap / append / uninstall is worse than a surfaced
+     * error. Read-only probes (id, :, dd if=, getprop, dumpsys) stay eligible.
+     */
+    private static boolean isRetrySafeCommand(String command) {
+        if (command == null) return false;
+        String c = command.trim();
+        if (c.length() == 0) return false;
+        // Append redirects duplicate their payload on replay.
+        if (c.contains(">>")) return false;
+        // UI automation is never idempotent in practice.
+        if (c.startsWith("input ") || c.contains("input tap ")
+                || c.contains("input swipe ") || c.contains("input keyevent ")
+                || c.contains("input text ")) {
+            return false;
+        }
+        if (c.startsWith("monkey ") || c.contains(" monkey ")) return false;
+        // File system mutation.
+        if (c.startsWith("rm ") || c.contains(" rm ") || c.contains(" rm -")) return false;
+        if (c.startsWith("mv ") || c.contains(" mv ")) return false;
+        if (c.startsWith("cp ") || c.contains(" cp ")) return false;
+        if (c.contains("mkdir")) return false;
+        if (c.startsWith("dd ") && c.contains(" of=")) return false;
+        // Package / process / system control.
+        if (c.contains("uninstall") || c.contains("force-stop")) return false;
+        if (c.startsWith("am ") || c.contains(" am ")) return false;
+        if (c.startsWith("pm ") || c.contains(" pm ")) return false;
+        if (c.contains("kill") || c.contains("reboot")) return false;
+        return true;
+    }
+
+    /** True when a failed command looks like a transient transport fault. */
+    private static boolean isTransientCommandFailure(CommandResult result) {
+        if (result == null) return false;
+        // Our own "command timed out" marker is worth exactly one retry.
+        if (result.exitCode == -2) return true;
+        String detail = combinedCommandOutput(result);
+        if (detail.length() == 0) return false;
+        // A genuinely missing backend is not transient; the Shizuku path above
+        // already tried to restart it and friendlyFailure() explains it.
+        if (detail.contains("Server is not running")
+                || detail.contains("Shizuku service not running")
+                || detail.contains("no executable su")
+                || detail.contains("rish_shizuku.dex is unavailable")
+                || detail.contains("unknown execution backend")) {
+            return false;
+        }
+        return detail.contains("Request timeout")
+                || detail.contains("binder")
+                || detail.contains("DeadObject")
+                || detail.contains("TransactionTooLarge")
+                || detail.contains("Broken pipe")
+                || detail.contains("Connection reset")
+                || detail.contains("Resource temporarily unavailable")
+                || detail.contains("Too many open files");
+    }
+
+    private static CommandResult runCommandWithShizukuServerRecovery(
             Context context, String backend, String command,
             long timeoutMs, boolean binaryOutput, int outputLimit) {
         CommandResult first = runCommand(
@@ -2830,7 +3059,7 @@ final class AgentDeviceBridge {
             String startFailure = combinedCommandOutput(started);
             return new CommandResult(first.exitCode, first.output,
                     first.error + (startFailure.length() == 0 ? ""
-                            : "\nRoot auto-start failed: " + startFailure),
+                            : "Root auto-start failed: " + startFailure),
                     first.binary, first.truncated || started.truncated);
         }
         /*
