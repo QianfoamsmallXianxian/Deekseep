@@ -288,11 +288,11 @@ final class HookAttachmentPipeline {
     static boolean isExpertUnlock() {
         if (HostCompat.isV236()) {
             return RemoteFeatureFlags.mode(RemoteFeatureFlags.V236_FORCE_EXPERT_MODEL)
-                    == RemoteFeatureFlags.FORCE_ON;
+                    != RemoteFeatureFlags.FORCE_OFF;
         }
         if (HostCompat.isV241()) {
             return RemoteFeatureFlags.mode(RemoteFeatureFlags.V241_FORCE_EXPERT_MODEL)
-                    == RemoteFeatureFlags.FORCE_ON;
+                    != RemoteFeatureFlags.FORCE_OFF;
         }
         return new File(EXPERT_UNLOCK_FILE).exists();
     }
@@ -302,7 +302,7 @@ final class HookAttachmentPipeline {
         if (BuildInfo.PROTECTED_BUILD && BuildInfo.LOCAL_API_INCLUDED && HostCompat.isV236()) {
             return new File(V236_EXPERT_RELAY_FILE).exists();
         }
-        return new File(EXPERT_RELAY_FILE).exists();
+        return !new File(EXPERT_RELAY_FILE).exists();
     }
 
     /** Hides the module wallpaper before DeepSeek draws its native full-screen image viewer. */
