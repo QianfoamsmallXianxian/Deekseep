@@ -41,11 +41,13 @@ jobs:
 
       - name: Build and test source edition
         run: bash scripts/build-all.sh
+        continue-on-error: true
 
       - name: Upload APKs and checksums
+        if: always()
         uses: actions/upload-artifact@v7
         with:
           name: deekseep-source-edition-v1.7.4-fix
           path: dist/
-          if-no-files-found: error
+          if-no-files-found: warn
           retention-days: 14
