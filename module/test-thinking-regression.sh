@@ -120,20 +120,73 @@ javac -source 8 -target 8 -cp "$JSON_JAR:$ANDROID_JAR:$UNIVERSAL_CLASSES:build/c
 # compatibility regression tests validate yesterday's APK instead of the pending build.
 TEST_CP="$JSON_JAR:$ANDROID_JAR:$OUT/classes:$UNIVERSAL_CLASSES:build/classes"
 
-# DIAGNOSTIC RUN 3: enumerate failing regressions with detail
-DIAG_TESTS="ChatEditorThinkingRegressionTest ChatEditorHistoryImageRegressionTest HistoryBridgeRegressionTest NativeSessionDeleteRegressionTest NativeSessionRefreshRegressionTest ResponsePreserverRegressionTest AccountCredentialCodecRegressionTest AccountServerValidationRegressionTest GoogleLoginUnlockRegressionTest NativeApiPatchDecoderRegressionTest HostCompatRegressionTest UiLanguagePolicyRegressionTest ChatAppearanceConfigRegressionTest ImageCutoutRegressionTest HeartbeatToolProtocolRegressionTest RichPanelRendererRegressionTest AgentRunStoreRegressionTest ChatBackupFormatRegressionTest DeepSeekCacheCleanerRegressionTest RemoteFeatureFlagsRegressionTest ProcessManagerRegressionTest ReplyReadyPolicyRegressionTest AutoContinuePolicyRegressionTest"
-DP=0
-DF=0
-for t in $DIAG_TESTS; do
-    if out=$(java -cp "$TEST_CP" "com.dsmod.probe.$t" 2>&1); then
-        echo "##PASS## $t"
-        DP=$((DP + 1))
-    else
-        echo "##FAIL## $t"
-        printf '%s\n' "$out" | head -4 | sed 's/^/    /'
-        DF=$((DF + 1))
-    fi
-done
-echo "##TOTAL## pass=$DP fail=$DF"
+java -cp "$TEST_CP" \
+    com.dsmod.probe.ChatEditorThinkingRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.ChatEditorHistoryImageRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.HistoryBridgeRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.NativeSessionDeleteRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.NativeSessionRefreshRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.ResponsePreserverRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.AccountCredentialCodecRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.AccountServerValidationRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.GoogleLoginUnlockRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.NativeApiPatchDecoderRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.HostCompatRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.UiLanguagePolicyRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.ChatAppearanceConfigRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.ImageCutoutRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.HeartbeatToolProtocolRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.RichPanelRendererRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.AgentRunStoreRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.ChatBackupFormatRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.DeepSeekCacheCleanerRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.RemoteFeatureFlagsRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.ProcessManagerRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.ReplyReadyPolicyRegressionTest
+
+java -cp "$TEST_CP" \
+    com.dsmod.probe.AutoContinuePolicyRegressionTest
 
 ./test-language-catalog.sh
