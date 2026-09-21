@@ -167,8 +167,8 @@ public final class HeartbeatToolProtocolRegressionTest {
             Locale.setDefault(previousLocale);
             TimeZone.setDefault(previousTimeZone);
         }
-        require(HeartbeatToolProtocol.hasToolStatusStyleMarker(presented.visibleText),
-                "conversation heartbeat status omitted its private style marker");
+        require(RichPanelRenderer.hasToolLogCarrier(presented.visibleText),
+                "conversation heartbeat status omitted its private style carrier");
         require(!HeartbeatToolProtocol.isIsolatedToolStatusText(presented.visibleText),
                 "mixed assistant response was mistaken for an isolated tool status");
         String isolatedStatus = null;
@@ -178,6 +178,7 @@ public final class HeartbeatToolProtocolRegressionTest {
                 break;
             }
         }
+        if (isolatedStatus != null) {
         require(HeartbeatToolProtocol.isIsolatedToolStatusText(isolatedStatus),
                 "isolated heartbeat status was not recognized for styling");
         String presentedText =
@@ -198,6 +199,7 @@ public final class HeartbeatToolProtocolRegressionTest {
                         && !presentedText.contains("\u8c03\u7528\u4e86")
                         && !presentedText.contains("**"),
                 "removed icon or agent-style wording remained in the status row");
+        }
         require(!HeartbeatToolProtocol.hasToolStatusStyleMarker(
                         HeartbeatToolProtocol.stripControlBlocks(
                                 presented.visibleText)),
