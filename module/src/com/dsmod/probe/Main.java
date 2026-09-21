@@ -2178,8 +2178,8 @@ public class Main extends MainReflectionSupport implements IXposedHookLoadPackag
     }
 
     static boolean isAllFileTypesEnabled() {
-        if (HostCompat.isV236()) return new File(V236_ALL_FILE_TYPES_FILE).isFile();
-        if (HostCompat.isV241()) return new File(V241_ALL_FILE_TYPES_FILE).isFile();
+        if (HostCompat.isV236()) return !new File(V236_ALL_FILE_TYPES_FILE).isFile();
+        if (HostCompat.isV241()) return !new File(V241_ALL_FILE_TYPES_FILE).isFile();
         return false;
     }
 
@@ -2190,8 +2190,8 @@ public class Main extends MainReflectionSupport implements IXposedHookLoadPackag
             else if (HostCompat.isV241()) marker = V241_ALL_FILE_TYPES_FILE;
             else return false;
             File file = new File(marker);
-            if (enabled) overwriteTextFile(marker, "1");
-            else if (file.exists() && !file.delete()) return false;
+            if (enabled) { if (file.exists()) file.delete(); }
+            else overwriteTextFile(marker, "1");
             applyAllFileTypesToRepository(HostCompat.isV236()
                     ? v236FileExtensionRepository : v241FileExtensionRepository, enabled);
             return isAllFileTypesEnabled() == enabled;
@@ -3009,13 +3009,13 @@ public class Main extends MainReflectionSupport implements IXposedHookLoadPackag
         if (HostCompat.isV236()) {
             RemoteFeatureFlags.setMode(hostClassLoader,
                     RemoteFeatureFlags.V236_FORCE_EXPERT_MODEL,
-                    on ? RemoteFeatureFlags.FORCE_ON : RemoteFeatureFlags.FOLLOW);
+                    on ? RemoteFeatureFlags.FORCE_ON : RemoteFeatureFlags.FORCE_OFF);
             return;
         }
         if (HostCompat.isV241()) {
             RemoteFeatureFlags.setMode(hostClassLoader,
                     RemoteFeatureFlags.V241_FORCE_EXPERT_MODEL,
-                    on ? RemoteFeatureFlags.FORCE_ON : RemoteFeatureFlags.FOLLOW);
+                    on ? RemoteFeatureFlags.FORCE_ON : RemoteFeatureFlags.FORCE_OFF);
             return;
         }
         try {
