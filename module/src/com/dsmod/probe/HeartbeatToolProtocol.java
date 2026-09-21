@@ -75,9 +75,10 @@ final class HeartbeatToolProtocol {
 
     private static final int MAX_CONTROL_JSON = 48 * 1024;
     /**
-     * The native chat bridge has one generation lane per conversation.  Keeping this at one is
-     * not just a prompt preference: it is the protocol-level guard that makes execution order,
-     * result delivery and side-effect deduplication deterministic.
+     * Maximum number of independent tool calls accepted from one complete control block. The
+     * native chat bridge has a single generation lane per conversation: one control block per
+     * turn, containing two to four independent calls. This guard keeps execution order, result
+     * delivery and side-effect deduplication deterministic.
      */
     private static final int MAX_CALLS_PER_RESPONSE = 4;
     private static final int MAX_INSTRUCTION = 1200;
