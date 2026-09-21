@@ -248,7 +248,7 @@ public final class RichPanelRendererRegressionTest {
                 "render_rich_panel was not parsed as one strict tool call");
         String visibleText = HeartbeatToolProtocol.stripToolStatusStyleMarkers(
                 visible.visibleText);
-        require(visibleText.contains("生成富视觉：Agent 富面板")
+        require(RichPanelRenderer.hasToolLogCarrier(visibleText)
                         && visibleText.contains("$$")
                         && visibleText.contains("\\begin{array}"),
                 "the activity row and generated panel were not shown together");
