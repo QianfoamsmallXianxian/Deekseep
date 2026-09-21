@@ -2938,18 +2938,6 @@ final class AgentDeviceBridge {
      *
      * Retries are gated by isRetrySafeCommand(): replaying a tap, an append or
      * an uninstall is worse than surfacing the original error, so only commands
-     * whose repeated execution cannot change the outcome are eligible.
-     */
-    /**
-     * Outer resilience wrapper for every privileged tool invocation.
-     *
-     * The inner routine still owns the Shizuku-specific recovery (restarting a
-     * stopped server through Root). This wrapper adds a generic, bounded retry
-     * for transport-level faults that the inner routine does not recognise:
-     * binder timeouts, dead objects, broken pipes and our own command timeout.
-     *
-     * Retries are gated by isRetrySafeCommand(): replaying a tap, an append or
-     * an uninstall is worse than surfacing the original error, so only commands
      * whose repeated execution cannot change the outcome are eligible. The
      * whole sequence is additionally capped by RETRY_TOTAL_BUDGET_MS, measured
      * from the first attempt, so a stuck backend cannot hold the conversation
@@ -3059,7 +3047,7 @@ final class AgentDeviceBridge {
             String startFailure = combinedCommandOutput(started);
             return new CommandResult(first.exitCode, first.output,
                     first.error + (startFailure.length() == 0 ? ""
-                            : "Root auto-start failed: " + startFailure),
+                            : "\nRoot auto-start failed: " + startFailure),
                     first.binary, first.truncated || started.truncated);
         }
         /*
