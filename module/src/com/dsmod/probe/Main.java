@@ -3020,8 +3020,8 @@ public class Main extends MainReflectionSupport implements IXposedHookLoadPackag
         }
         try {
             File ef = new File(HookAttachmentPipeline.EXPERT_UNLOCK_FILE);
-            if (on) overwriteTextFile(HookAttachmentPipeline.EXPERT_UNLOCK_FILE, "");
-            else ef.delete();
+            if (on) { if (ef.exists()) ef.delete(); }
+            else overwriteTextFile(HookAttachmentPipeline.EXPERT_UNLOCK_FILE, "");
         } catch (Throwable ignored) {}
     }
 
@@ -6661,12 +6661,12 @@ public class Main extends MainReflectionSupport implements IXposedHookLoadPackag
     }
 
     static boolean setExpertRelayEnabled(boolean enabled) {
-        if (!BuildInfo.PROTECTED_BUILD || !BuildInfo.LOCAL_API_INCLUDED || (!HostCompat.isV236() && !HostCompat.isV241())) return false;
+        if (!HostCompat.isV236() && !HostCompat.isV241()) return false;
         try {
-            String markerPath = HostCompat.isV236() ? HookAttachmentPipeline.V236_EXPERT_RELAY_FILE : HookAttachmentPipeline.EXPERT_RELAY_FILE;
+            String markerPath = (BuildInfo.PROTECTED_BUILD && BuildInfo.LOCAL_API_INCLUDED && HostCompat.isV236()) ? HookAttachmentPipeline.V236_EXPERT_RELAY_FILE : HookAttachmentPipeline.EXPERT_RELAY_FILE;
             File marker = new File(markerPath);
-            if (enabled) overwriteTextFile(marker.getPath(), "1");
-            else if (marker.exists() && !marker.delete()) return false;
+            if (enabled) { if (marker.exists()) marker.delete(); }
+            else overwriteTextFile(marker.getPath(), "1");
             return HookAttachmentPipeline.isExpertRelayEnabled() == enabled;
         } catch (Throwable error) {
             log("expert image relay setting failed: " + safeThrowableMessage(error));
