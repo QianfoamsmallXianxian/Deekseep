@@ -294,7 +294,7 @@ final class HookAttachmentPipeline {
             return RemoteFeatureFlags.mode(RemoteFeatureFlags.V241_FORCE_EXPERT_MODEL)
                     != RemoteFeatureFlags.FORCE_OFF;
         }
-        return new File(EXPERT_UNLOCK_FILE).exists();
+        return !new File(EXPERT_UNLOCK_FILE).exists();
     }
 
     // 热更新后专家入口和图片中继分别管理；中继保留旧实现但默认暂停。
