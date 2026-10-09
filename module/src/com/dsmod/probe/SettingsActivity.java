@@ -254,9 +254,18 @@ public class SettingsActivity extends Activity {
         item.setOrientation(LinearLayout.VERTICAL);
         item.setGravity(Gravity.CENTER);
         ModuleGlyphView glyph = new ModuleGlyphView(this, icon, target == page ? accent : muted);
-        item.addView(glyph, new LinearLayout.LayoutParams(dp(25), dp(25)));
+        LinearLayout.LayoutParams glyphLp = new LinearLayout.LayoutParams(dp(25), dp(25));
+        glyphLp.gravity = Gravity.CENTER_HORIZONTAL;
+        item.addView(glyph, glyphLp);
         TextView name = text(label, 11, target == page ? accent : muted, Typeface.DEFAULT);
-        item.addView(name);
+        name.setGravity(Gravity.CENTER);
+        name.setIncludeFontPadding(false);
+        LinearLayout.LayoutParams nameLp = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        nameLp.gravity = Gravity.CENTER_HORIZONTAL;
+        nameLp.topMargin = dp(2);
+        item.addView(name, nameLp);
         item.setOnClickListener(new View.OnClickListener() {
             @Override public void onClick(View view) { showPage(target); renderShell(); }
         });
