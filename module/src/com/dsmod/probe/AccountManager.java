@@ -652,7 +652,7 @@ final class AccountManager {
         return validationLocale(Locale.getDefault());
     }
 
-    private static String validationRangersId(Context context) {
+    static String validationRangersId(Context context) {
         try {
             SharedPreferences prefs = context.getSharedPreferences(RANGERS_PREFS, Context.MODE_PRIVATE);
             try {

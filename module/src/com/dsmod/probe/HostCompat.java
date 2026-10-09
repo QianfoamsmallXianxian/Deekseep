@@ -1230,7 +1230,8 @@ public final class HostCompat {
 
     static String selfCheckSnapshot(android.content.Context context) {
         try {
-            String ver = BuildInfo.versionName(context);
+            String ver = context.getPackageManager()
+                .getPackageInfo(context.getPackageName(), 0).versionName;
             int sdk = android.os.Build.VERSION.SDK_INT;
             String ua = AccountManager.validationUserAgent(ver, sdk);
             String locale = AccountManager.validationLocale(java.util.Locale.getDefault());
