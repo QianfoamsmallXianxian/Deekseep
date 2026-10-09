@@ -1,0 +1,9 @@
+build/
+dist/
+.gradle/
+*.apk
+*.dex
+*.class
+*.keystore
+.patch_backup_*
+.bak_*
