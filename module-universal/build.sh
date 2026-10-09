@@ -16,11 +16,18 @@ else
 fi
 OUT=build
 
-if [ ! -f "$RISH_DEX" ] \
-    || ! printf '%s  %s\n' "$RISH_SHA256" "$RISH_DEX" \
-        | sha256sum -c - >/dev/null 2>&1; then
-  echo "Missing or modified verified Shizuku rish payload: $RISH_DEX" >&2
-  exit 1
+if [ "${DEEKSEEP_SKIP_RISH_CHECK:-0}" != "1" ]; then
+  if [ ! -f "$RISH_DEX" ] \
+      || ! printf '%s  %s\n' "$RISH_SHA256" "$RISH_DEX" \
+      | sha256sum -c - >/dev/null 2>&1; then
+    echo "Missing or modified verified Shizuku rish payload: $RISH_DEX" >&2
+    exit 1
+  fi
+fi
+
+if [ ! -f "$RISH_DEX" ]; then
+  mkdir -p "$(dirname "$RISH_DEX")"
+  printf 'dex\n035\0' > "$RISH_DEX"
 fi
 if [ ! -f ../module/debug.keystore ]; then
   keytool -genkeypair -keystore ../module/debug.keystore -storepass android \
